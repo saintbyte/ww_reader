@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/adrianmo/go-nmea"
 	"github.com/jacobsa/go-serial/serial"
 	"io"
 	"log/slog"
@@ -44,11 +45,36 @@ func readFromChan(port io.ReadWriteCloser, channel chan string) {
 		}
 	}
 }
-func parseString(s string) {
-	fmt.Println("received", s)
+func parseString(seq string) {
+	fmt.Println("received", seq)
+	s, err := nmea.Parse(seq)
+	if err != nil {
+		slog.Error("Nmea parse error:", err)
+		return
+	}
+	if s.DataType() == nmea.TypeXDR {
+
+	}
 }
+
+func defineCustomNMEAParsers() {
+	err = nmea.RegisterParser("XYZ", func(s nmea.BaseSentence) (nmea.Sentence, error) {
+		// This example uses the package builtin parsing helpers
+		// you can implement your own parsing logic also
+		p := nmea.NewParser(s)
+		return LILType{
+			BaseSentence: s,
+			Time:         p.Time(0, "time"),
+			Label:        p.String(1, "label"),
+			Counter:      p.Int64(2, "counter"),
+			Value:        p.Float64(3, "value"),
+		}, p.Err()
+	})
+}
+
 func main() {
 	// stty -F /dev/ttyUSB0 115200 cs8 -cstopb -parenb
+	defineCustomNMEAParsers()
 	var err error
 	options := serial.OpenOptions{
 		PortName:              "/dev/ttyUSB0",
@@ -65,6 +91,7 @@ func main() {
 		return
 	}
 	defer port.Close()
+
 	outputChan := make(chan string)
 	go readFromChan(port, outputChan)
 	for {
